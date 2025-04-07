@@ -23,7 +23,7 @@ namespace NEAT
         {
             Pop_Size = 50;
             InputNodes = 2;
-            HiddenNodes = 1;
+            HiddenNodes = 0;
             OutputNodes = 1;
             ProcentConnection = 1f;
             SpeciateCoefficient = new float[] {1f, 1f, 0.4f};
@@ -35,18 +35,23 @@ namespace NEAT
                 Brain brain = new Brain();
                 var nodesArr = new int[] { InputNodes, HiddenNodes, OutputNodes };
                 brain.Initialies(nodesArr, new List<Node>() { new Node(nodesArr.Length+1, NodeType.BIAS, 1) }, ProcentConnection);
+
                 brain.LoadInputs(new float[] { 0, 0, 1 });
                 brain.RunTheNetWork();
                 brain.Fitness += 1 - brain.GetOutput().Average();
+
                 brain.LoadInputs(new float[] { 0, 1, 1 });
                 brain.RunTheNetWork();
                 brain.Fitness += brain.GetOutput().Average();
+
                 brain.LoadInputs(new float[] { 1, 0, 1 });
                 brain.RunTheNetWork();
                 brain.Fitness += brain.GetOutput().Average();
+
                 brain.LoadInputs(new float[] { 1, 1, 1 });
                 brain.RunTheNetWork();
                 brain.Fitness += 1 - brain.GetOutput().Average();
+
                 brains.Add(brain);
             }
             brains = brains.OrderBy(x => x.Fitness).ToList();
@@ -152,7 +157,7 @@ namespace NEAT
         }
         public override string ToString()
         {
-            return "" + Fitness;
+            return "" + Fitness + ", " + Species;
         }
         public void DrawNetwork()
         {
