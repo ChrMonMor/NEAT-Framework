@@ -54,47 +54,51 @@ namespace NEAT
 
                 brains.Add(brain);
             }
-            var a = Speciate.GenerationOffspring(brains, 6f, SpeciateCoefficient);
+            Speciate.GenerationOffspring(brains, 6f, SpeciateCoefficient);
+            // this is to be deleted as I will Only do this for readability 
             brains = brains.OrderBy(x => x.Fitness).ToList();
             foreach (var item in brains)
             {
                 Console.WriteLine(item.Fitness);
             }
-            a = Speciate.GenerationOffspring(brains, 6f, SpeciateCoefficient);
-            Console.WriteLine(a.Sum());
+            Console.WriteLine(Speciate.Species.Sum(x => x.Members.Count));
+            Console.WriteLine(Speciate.GlobalAdjustedFitness);
             Console.ReadLine();
         }
     }
     public class Species
     {
-        public Species(int iD, List<Brain> members = null, List<Brain> offspring = null, float fitness = 0f, float adjustedFitness = 0f, float sumFitness = 0f, float gensSinceImproved = 0f)
+        public Species(int id, List<Brain> members = null, int allowedOffspring = 0, float fitness = 0f, float adjustedFitness = 0f, float sumAdjustedFitness = 0f, float gensSinceImproved = 0f)
         {
-            ID = iD;
+            Id = id;
             Members = members ?? new List<Brain>();
-            Offspring = offspring ?? new List<Brain>();
+            AllowedOffspring = allowedOffspring;
             Fitness = fitness;
             AdjustedFitness = adjustedFitness;
-            SumFitness = sumFitness;
+            SumAdjustedFitness = sumAdjustedFitness;
             GensSinceImproved = gensSinceImproved;
         }
-        public int ID { get; set; }
+        public int Id { get; set; }
         public List<Brain> Members { get; set; }
-        public List<Brain> Offspring { get; set; }
+        public int AllowedOffspring { get; set; }
         public float Fitness { get; set; }
         public float AdjustedFitness { get; set; }
-        public float SumFitness { get; set; }
+        public float SumAdjustedFitness { get; set; }
         public float GensSinceImproved {  get; set; }
+        public override string ToString() {
+            return  "" + AdjustedFitness + ", " + AllowedOffspring + ", " + Members.Count;
+        }
     }
-    public class Speciate
+    public static class Speciate
     {
-        public static float GlobalFitness;
-        public static Dictionary<int, float> SpeciesAvgFitness;
-        public static List<int> Counts;
-        public static int[] GenerationOffspring(List<Brain> networks, float threshold, float[] coefficient = null)
+        public static List<Species> Species { get; set; }
+        public static float GlobalAdjustedFitness; 
+        public static List<Species> GenerationOffspring(List<Brain> networks, float threshold, float[] coefficient = null)
         {
+            GlobalAdjustedFitness = 0;
             int n = 0;
-            SpeciesAvgFitness = new Dictionary<int, float>();
-            Counts = new List<int>();
+            Dictionary<int, float> SpeciesAvgFitness = new Dictionary<int, float>();
+            List<int> Counts = new List<int>();
             int a = RNG.Ran(0, networks.Count);
             // for starting of with a random index. 
             for (int i = a; i < networks.Count; i++)
@@ -151,27 +155,25 @@ namespace NEAT
                 SpeciesAvgFitness[brain.Species] += brain.AdjustedFitness;
             }
 
-            GlobalFitness = networks.Sum(x => x.AdjustedFitness) / networks.Count;
+            float GlobalFitness = networks.Sum(x => x.AdjustedFitness) / networks.Count;
 
-            int[] res = new int[n];
+            List<Species> res = new List<Species>();
 
             for (int i = 0; i < n; i++)
             {
-                res[i] = (int)Math.Round((SpeciesAvgFitness[i] / Counts[i]) / GlobalFitness * Counts[i],0);
+                res.Add(new Species(i));
+                res[i].AdjustedFitness = (SpeciesAvgFitness[i] / Counts[i]); 
+                res[i].AllowedOffspring = (int)Math.Round(res[i].AdjustedFitness / GlobalFitness * Counts[i],0);
+                res[i].Members = networks.Where(x => x.Species == i).ToList();
+                res[i].SumAdjustedFitness = res[i].Members.Sum(x => x.AdjustedFitness);
+                res[i].Fitness = res[i].Members.Sum(x => x.Fitness) / res[i].Members.Count; 
             }
+
+            GlobalAdjustedFitness = GlobalFitness;
+            Species = res;
 
             return res;
 
-        }
-        public static void GlobalFitnessAdjusted(List<Brain> brains)
-        {
-            GlobalFitness = 0;
-            foreach (var item in brains)
-            {
-                item.AdjustedFitness = item.Fitness / brains.Count(x => x.Species == item.Species);
-                GlobalFitness += item.AdjustedFitness;
-            }
-            GlobalFitness /= brains.Count;
         }
         public static bool SpeciateComparisonCheck(Brain netA, Brain netB, float threshold, float[] coefficient = null) {
             coefficient = coefficient ?? new[] { 1f, 1f, 1f };
@@ -196,10 +198,6 @@ namespace NEAT
             }
 
             return false;
-        }
-        public static void AdjustedFitnessValue(Brain brain, int speciateCount)
-        {
-            brain.AdjustedFitness = brain.Fitness / speciateCount;
         }
     } 
     public enum NodeType
@@ -249,11 +247,18 @@ namespace NEAT
     }
     public class Brain
     {
+        public Brain() { }
         public List<Node> ArrNodes = new List<Node>();
         public Dictionary<int, Connection> ArrConnections = new Dictionary<int, Connection>();
         public float Fitness = 0;
         public float AdjustedFitness = 0;
         public int Species = -1;
+
+        public Brain(Brain parentA, Brain parentB = null) {
+            if(parentB == null) {
+
+            } 
+        }
         public void Initialies(int[] inHidOut, List<Node> biasNodes = null, float connectProcent = 1f) 
         {
             int layer = 1;
@@ -396,6 +401,7 @@ namespace NEAT
         {
             return ArrNodes.Where(x => x.NodeType == NodeType.OUTPUT).Select(x => x.SumOutput).ToList();
         }
+
     }
     static class RNG
     {
