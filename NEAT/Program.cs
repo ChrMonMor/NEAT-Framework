@@ -56,37 +56,6 @@ namespace NEAT
             }
             Console.ReadLine();
         }
-        public float SpeciateComparisonCheck(Brain netA, Brain netB, float[] coefficient = null)
-        {
-            coefficient = coefficient ?? new[]{ 1f, 1f, 1f };
-            int aExcess = 0, bExcess = 0, aDisjoint = 0, bDisjoint = 0, avgCount = 0, n = 0;
-            float avgWeight = 0;
-            foreach (var aConn in netA.ArrConnections)
-            {
-                if (netB.ArrConnections.ContainsKey(aConn.Key))
-                {
-                    avgWeight += Math.Abs(aConn.Value.ConnectionWeight) + Math.Abs(netB.ArrConnections[aConn.Key].ConnectionWeight);
-                    avgCount++;
-                }
-            }
-            avgWeight = (avgWeight / avgCount) * coefficient[2];
-
-            if (netA.ArrConnections.Count < netB.ArrConnections.Count)
-            {
-                n = netA.ArrConnections.Count;
-
-            } 
-            else
-            {
-                n = netB.ArrConnections.Count;
-
-            }
-                for (int i = 0; i < n; i++)
-                {
-
-                }
-            return 0f;
-        }
     }
     public enum NodeType
     {
@@ -280,6 +249,29 @@ namespace NEAT
         public List<float> GetOutput()
         {
             return ArrNodes.Where(x => x.NodeType == NodeType.OUTPUT).Select(x => x.SumOutput).ToList();
+        }
+        public bool SpeciateComparisonCheck(Brain netB, float threshold, float[] coefficient = null) {
+            coefficient = coefficient ?? new[] { 1f, 1f, 1f };
+            float excess = 0, disjoint = 0, avgWeight = 0;
+            int n = Math.Max(ArrConnections.Count, netB.ArrConnections.Count), avgCount = 0;
+            int aMax = ArrConnections.Max(x => x.Key), bMax = netB.ArrConnections.Max(x => x.Key);
+            excess = (float)(ArrConnections.Count(x => x.Key > bMax) + netB.ArrConnections.Count(x => x.Key > aMax)) / n * coefficient[0];
+            disjoint = (float)(ArrConnections.Count(x => x.Key < bMax && !netB.ArrConnections.ContainsKey(x.Key)) + netB.ArrConnections.Count(x => x.Key < aMax && !ArrConnections.ContainsKey(x.Key))) / n * coefficient[1];
+            // gives avg of connections of the same InnovationID
+            foreach (var aConn in ArrConnections) {
+                if (netB.ArrConnections.ContainsKey(aConn.Key)) {
+                    avgWeight += Math.Abs(aConn.Value.ConnectionWeight + netB.ArrConnections[aConn.Key].ConnectionWeight);
+                    avgCount++;
+                }
+            }
+            avgWeight = (float)(avgWeight / avgCount) * coefficient[2];
+
+            if(excess + disjoint + avgWeight <= threshold) {
+                netB.Species = Species;
+                return true;
+            }
+
+            return false;
         }
     }
     static class RNG
