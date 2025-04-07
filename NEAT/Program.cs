@@ -54,14 +54,154 @@ namespace NEAT
 
                 brains.Add(brain);
             }
+            var a = Speciate.GenerationOffspring(brains, 6f, SpeciateCoefficient);
             brains = brains.OrderBy(x => x.Fitness).ToList();
             foreach (var item in brains)
             {
                 Console.WriteLine(item.Fitness);
             }
+            a = Speciate.GenerationOffspring(brains, 6f, SpeciateCoefficient);
+            Console.WriteLine(a.Sum());
             Console.ReadLine();
         }
     }
+    public class Species
+    {
+        public Species(int iD, List<Brain> members = null, List<Brain> offspring = null, float fitness = 0f, float adjustedFitness = 0f, float sumFitness = 0f, float gensSinceImproved = 0f)
+        {
+            ID = iD;
+            Members = members ?? new List<Brain>();
+            Offspring = offspring ?? new List<Brain>();
+            Fitness = fitness;
+            AdjustedFitness = adjustedFitness;
+            SumFitness = sumFitness;
+            GensSinceImproved = gensSinceImproved;
+        }
+        public int ID { get; set; }
+        public List<Brain> Members { get; set; }
+        public List<Brain> Offspring { get; set; }
+        public float Fitness { get; set; }
+        public float AdjustedFitness { get; set; }
+        public float SumFitness { get; set; }
+        public float GensSinceImproved {  get; set; }
+    }
+    public class Speciate
+    {
+        public static float GlobalFitness;
+        public static Dictionary<int, float> SpeciesAvgFitness;
+        public static List<int> Counts;
+        public static int[] GenerationOffspring(List<Brain> networks, float threshold, float[] coefficient = null)
+        {
+            int n = 0;
+            SpeciesAvgFitness = new Dictionary<int, float>();
+            Counts = new List<int>();
+            int a = RNG.Ran(0, networks.Count);
+            // for starting of with a random index. 
+            for (int i = a; i < networks.Count; i++)
+            {
+                if (networks[i].Species != -1)
+                {
+                    continue;
+                }
+                SpeciesAvgFitness.Add(n, 0f);
+                Counts.Add(1);
+                networks[i].Species = n;
+                foreach (var item in networks)
+                {
+                    if (item.Species != -1)
+                    {
+                        continue;
+                    }
+                    if (SpeciateComparisonCheck(networks[i], item, threshold, coefficient))
+                    {
+                        Counts[n]++;
+                    }
+                }
+                SpeciesAvgFitness[n] /= Counts[n];
+                n++;
+            }
+
+            foreach (var net in networks)
+            {
+                if(net.Species != -1)
+                {
+                    continue;
+                } 
+                SpeciesAvgFitness.Add(n, 0f);
+                Counts.Add(1);
+                net.Species = n;
+                foreach (var item in networks)
+                {
+                    if (item.Species != -1)
+                    {
+                        continue;
+                    }
+                    if(SpeciateComparisonCheck(net, item, threshold, coefficient))
+                    {
+                        Counts[n]++;
+                    }
+                }
+                SpeciesAvgFitness[n] /= Counts[n];
+                n++;
+            }
+
+            foreach (var brain in networks)
+            {
+                brain.AdjustedFitness = brain.Fitness / Counts[brain.Species];
+                SpeciesAvgFitness[brain.Species] += brain.AdjustedFitness;
+            }
+
+            GlobalFitness = networks.Sum(x => x.AdjustedFitness) / networks.Count;
+
+            int[] res = new int[n];
+
+            for (int i = 0; i < n; i++)
+            {
+                res[i] = (int)Math.Round((SpeciesAvgFitness[i] / Counts[i]) / GlobalFitness * Counts[i],0);
+            }
+
+            return res;
+
+        }
+        public static void GlobalFitnessAdjusted(List<Brain> brains)
+        {
+            GlobalFitness = 0;
+            foreach (var item in brains)
+            {
+                item.AdjustedFitness = item.Fitness / brains.Count(x => x.Species == item.Species);
+                GlobalFitness += item.AdjustedFitness;
+            }
+            GlobalFitness /= brains.Count;
+        }
+        public static bool SpeciateComparisonCheck(Brain netA, Brain netB, float threshold, float[] coefficient = null) {
+            coefficient = coefficient ?? new[] { 1f, 1f, 1f };
+            float excess = 0, disjoint = 0, avgWeight = 0;
+            int n = Math.Max(netA.ArrConnections.Count, netB.ArrConnections.Count), avgCount = 0;
+            int aMax = netA.ArrConnections.Max(x => x.Key), bMax = netB.ArrConnections.Max(x => x.Key);
+            excess = (float)(netA.ArrConnections.Count(x => x.Key > bMax) + netB.ArrConnections.Count(x => x.Key > aMax)) / n * coefficient[0];
+            disjoint = (float)(netA.ArrConnections.Count(x => x.Key < bMax && !netB.ArrConnections.ContainsKey(x.Key)) + netB.ArrConnections.Count(x => x.Key < aMax && !netA.ArrConnections.ContainsKey(x.Key))) / n * coefficient[1];
+            // gives avg of connections of the same InnovationID
+            foreach (var aConn in netA.ArrConnections) {
+                if (netB.ArrConnections.ContainsKey(aConn.Key)) {
+                    avgWeight += Math.Abs(aConn.Value.ConnectionWeight + netB.ArrConnections[aConn.Key].ConnectionWeight);
+                    avgCount++;
+                }
+            }
+
+            avgWeight = (float)(avgWeight / avgCount) * coefficient[2];
+
+            if(excess + disjoint + avgWeight <= threshold) {
+                netB.Species = netA.Species;
+                return true;
+            }
+
+            return false;
+        }
+        public static void AdjustedFitnessValue(Brain brain, int speciateCount)
+        {
+            brain.AdjustedFitness = brain.Fitness / speciateCount;
+        }
+    } 
     public enum NodeType
     {
         INPUT = 0,
@@ -112,7 +252,8 @@ namespace NEAT
         public List<Node> ArrNodes = new List<Node>();
         public Dictionary<int, Connection> ArrConnections = new Dictionary<int, Connection>();
         public float Fitness = 0;
-        public int Species = 0;
+        public float AdjustedFitness = 0;
+        public int Species = -1;
         public void Initialies(int[] inHidOut, List<Node> biasNodes = null, float connectProcent = 1f) 
         {
             int layer = 1;
@@ -255,29 +396,6 @@ namespace NEAT
         {
             return ArrNodes.Where(x => x.NodeType == NodeType.OUTPUT).Select(x => x.SumOutput).ToList();
         }
-        public bool SpeciateComparisonCheck(Brain netB, float threshold, float[] coefficient = null) {
-            coefficient = coefficient ?? new[] { 1f, 1f, 1f };
-            float excess = 0, disjoint = 0, avgWeight = 0;
-            int n = Math.Max(ArrConnections.Count, netB.ArrConnections.Count), avgCount = 0;
-            int aMax = ArrConnections.Max(x => x.Key), bMax = netB.ArrConnections.Max(x => x.Key);
-            excess = (float)(ArrConnections.Count(x => x.Key > bMax) + netB.ArrConnections.Count(x => x.Key > aMax)) / n * coefficient[0];
-            disjoint = (float)(ArrConnections.Count(x => x.Key < bMax && !netB.ArrConnections.ContainsKey(x.Key)) + netB.ArrConnections.Count(x => x.Key < aMax && !ArrConnections.ContainsKey(x.Key))) / n * coefficient[1];
-            // gives avg of connections of the same InnovationID
-            foreach (var aConn in ArrConnections) {
-                if (netB.ArrConnections.ContainsKey(aConn.Key)) {
-                    avgWeight += Math.Abs(aConn.Value.ConnectionWeight + netB.ArrConnections[aConn.Key].ConnectionWeight);
-                    avgCount++;
-                }
-            }
-            avgWeight = (float)(avgWeight / avgCount) * coefficient[2];
-
-            if(excess + disjoint + avgWeight <= threshold) {
-                netB.Species = Species;
-                return true;
-            }
-
-            return false;
-        }
     }
     static class RNG
     {
@@ -286,9 +404,9 @@ namespace NEAT
         {
             return (float)ran.NextDouble();
         }
-        public static float Ran(int min, int max)
+        public static int Ran(int min, int max)
         {
-            return (float)ran.Next(min, max);
+            return ran.Next(min, max);
         }
     }
 }
