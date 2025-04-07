@@ -199,6 +199,7 @@ namespace NEAT
 
             return false;
         }
+
     } 
     public enum NodeType
     {
