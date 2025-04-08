@@ -19,6 +19,8 @@ namespace NEAT
         public static float ProcentConnection; // goes between 0 and 1
         public static int SpeciesTarget;
         public static float ComputedThreshold;
+        public static float MutationRate;
+        public static float MutationChance;
 
         public static float[] SpeciateCoefficient;
 
@@ -31,6 +33,8 @@ namespace NEAT
             ProcentConnection = 1f;
             SpeciesTarget = 5;
             ComputedThreshold = 30f;
+            MutationRate = 1f;
+            MutationChance = 0.8f;
             SpeciateCoefficient = new float[] {1f, 1f, 0.4f};
 
             var nodesArr = new int[] { InputNodes, HiddenNodes, OutputNodes };
@@ -173,7 +177,8 @@ namespace NEAT
     public static class Speciate
     {
         public static List<Species> Species { get; set; }
-        public static float GlobalAdjustedFitness; 
+        public static float GlobalAdjustedFitness;
+        public static int GenStagnationLimit = 15;
         public static List<Species> GenerationOffspring(List<Brain> networks, float threshold, float[] coefficient = null)
         {
             GlobalAdjustedFitness = 0;
@@ -250,6 +255,7 @@ namespace NEAT
                 res[i].Members = networks.Where(x => x.Species == i).ToList();
                 res[i].SumAdjustedFitness = res[i].Members.Sum(x => x.AdjustedFitness);
                 res[i].Fitness = res[i].Members.Sum(x => x.Fitness) / res[i].Members.Count;
+                res[i].GensSinceImproved = 0;
                 foreach (var rep in represents)
                 {
                     if (res[i].Members.Any(x => x.Fitness == rep.Key.Fitness && res[i].Id == rep.Key.Species))
@@ -257,7 +263,7 @@ namespace NEAT
                         res[i].GensSinceImproved = rep.Value + 1;
                     }
                 }
-                if(res[i].GensSinceImproved >= 15)
+                if(res[i].GensSinceImproved >= GenStagnationLimit)
                 {
                     res[i].AllowedOffspring = 0;
                 }
@@ -280,7 +286,7 @@ namespace NEAT
             // gives avg of connections of the same InnovationID
             foreach (var aConn in netA.ArrConnections) {
                 if (netB.ArrConnections.ContainsKey(aConn.Key)) {
-                    avgWeight += Math.Abs(aConn.Value.ConnectionWeight + netB.ArrConnections[aConn.Key].ConnectionWeight);
+                    avgWeight += Math.Abs(aConn.Value.ConnectionWeight - netB.ArrConnections[aConn.Key].ConnectionWeight);
                     avgCount++;
                 }
             }
@@ -388,11 +394,12 @@ namespace NEAT
             }
             return brains;
         }
-        public void Initialies(int[] inHidOut, List<Node> biasNodes = null, float connectProcent = 1f) 
+        public void Initialies(int[] inHidOut, List<Node> biasNodes = null, float connectProcent = 1f, int connectionRange = 20) 
         {
             int layer = 1;
             int type = 0;
             int j = 0;
+
             foreach (var n in inHidOut)
             {
                 for (int i = 0; i < n; i++, j++)
@@ -426,7 +433,7 @@ namespace NEAT
                     {
                         continue;
                     }
-                    AddConnection(iNode, uNode);
+                    AddConnection(iNode, uNode, range: connectionRange);
                 }
             }
         }
@@ -468,9 +475,47 @@ namespace NEAT
 
             ArrConnections.Add(id, new Connection(id, input.NodeId, output.NodeId, RNG.RanDub() * (range*2) - range, enable, isRecurrent));
         }
-        public void Mutate()
+        public void Mutate(float mutationChanceWeight = 0.8f, float mutationRateWeight = 0.2f, float mutationChanceConnection = 0.05f, float mutationChanceDisabledConnection = 0.2f, bool recusionAllowed = false, int range = 20, float mutaionChanceNodes = 0.2f)
         {
+            // Change Weigths 
+            if(RNG.RanDub() < mutationChanceWeight) {
+                foreach (var conn in ArrConnections) {
+                    if(RNG.RanDub() < 0.9f) {
+                        float temp = conn.Value.ConnectionWeight * mutationRateWeight;
+                        conn.Value.ConnectionWeight += RNG.RanDub() * (temp * 2) - temp;
+                    } else {
+                        conn.Value.ConnectionWeight = RNG.RanDub() * (range * 2) - range;
+                    }
+                }
+            }
 
+            // Add Connection 
+            if(RNG.RanDub() < mutationChanceConnection) {
+                for (int i = 0; i < 20; i++) {
+                    Node a = ArrNodes[RNG.Ran(0, ArrNodes.Count)];
+                    Node b = ArrNodes[RNG.Ran(0, ArrNodes.Count)];
+                    if(a.NodeId != b.NodeId && a.NodeLayer < b.NodeLayer ) {
+                        int key = int.Parse(a.NodeId + "00" + b.NodeId);
+                        if (ArrConnections.ContainsKey(key)) {
+                            if (recusionAllowed && ArrConnections[key].Enabled) {
+                                ArrConnections[key].IsRecurrent = !ArrConnections[key].IsRecurrent;
+                                break;
+                            } else if (!ArrConnections[key].Enabled && RNG.RanDub() < mutationChanceDisabledConnection) {
+                                ArrConnections[key].Enabled = true;
+                                break;
+                            }
+                        } else {
+                            AddConnection(a, b, range: range);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Adding Nodes 
+            if(RNG.RanDub() < mutaionChanceNodes) {
+
+            }
         }
         // We load only to the input nodes and they are only on layer 1
         // Since there are no activation fn, we also insert it as output sum
