@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 
@@ -16,6 +17,8 @@ namespace NEAT
         public static int HiddenNodes;
         public static int OutputNodes;
         public static float ProcentConnection; // goes between 0 and 1
+        public static int SpeciesTarget;
+        public static float ComputedThreshold;
 
         public static float[] SpeciateCoefficient;
 
@@ -23,47 +26,125 @@ namespace NEAT
         {
             Pop_Size = 50;
             InputNodes = 2;
-            HiddenNodes = 0;
+            HiddenNodes = 1;
             OutputNodes = 1;
             ProcentConnection = 1f;
+            SpeciesTarget = 5;
+            ComputedThreshold = 30f;
             SpeciateCoefficient = new float[] {1f, 1f, 0.4f};
 
-            List<Brain> brains = new List<Brain>();
+            var nodesArr = new int[] { InputNodes, HiddenNodes, OutputNodes };
+            List<Node> bias = new List<Node>() { new Node(nodesArr.Length + 1, NodeType.BIAS, 1) };
+            List<Brain> brains = Brain.RunInitialies(nodesArr, Pop_Size, bias, ProcentConnection);
 
+            while (true)
+            {
+                TestRun(brains);
+
+                brains = Crossover.NextGeneration(brains, nodesArr, Pop_Size, bias, ProcentConnection, ComputedThreshold, SpeciateCoefficient);
+
+                if (Speciate.Species.Count > SpeciesTarget)
+                {
+                    ComputedThreshold += 0.5f ;
+                } 
+                else
+                {
+                    ComputedThreshold -= 0.5f;
+                }
+
+                // this is to be deleted as I will Only do this for readabilit
+                Console.WriteLine(brains.First(x => x.Fitness == brains.Max(y => y.Fitness)).ToString());
+                Console.WriteLine(Speciate.Species.Sum(x => x.Members.Count));
+                Console.WriteLine(Speciate.GlobalAdjustedFitness);
+                Console.WriteLine(ComputedThreshold);
+                Console.WriteLine(Speciate.Species.Max(x => x.GensSinceImproved));
+                Console.Clear();
+            }
+        }
+        public static void TestRun(List<Brain> brains)
+        {
             for (int i = 0; i < Pop_Size; i++)
             {
-                Brain brain = new Brain();
-                var nodesArr = new int[] { InputNodes, HiddenNodes, OutputNodes };
-                brain.Initialies(nodesArr, new List<Node>() { new Node(nodesArr.Length+1, NodeType.BIAS, 1) }, ProcentConnection);
+                brains[i].LoadInputs(new float[] { 0, 0, 1 });
+                brains[i].RunTheNetWork();
+                brains[i].Fitness = 1 - brains[i].GetOutput().Average();
 
-                brain.LoadInputs(new float[] { 0, 0, 1 });
-                brain.RunTheNetWork();
-                brain.Fitness += 1 - brain.GetOutput().Average();
+                brains[i].LoadInputs(new float[] { 0, 1, 1 });
+                brains[i].RunTheNetWork();
+                brains[i].Fitness += brains[i].GetOutput().Average();
 
-                brain.LoadInputs(new float[] { 0, 1, 1 });
-                brain.RunTheNetWork();
-                brain.Fitness += brain.GetOutput().Average();
+                brains[i].LoadInputs(new float[] { 1, 0, 1 });
+                brains[i].RunTheNetWork();
+                brains[i].Fitness += brains[i].GetOutput().Average();
 
-                brain.LoadInputs(new float[] { 1, 0, 1 });
-                brain.RunTheNetWork();
-                brain.Fitness += brain.GetOutput().Average();
-
-                brain.LoadInputs(new float[] { 1, 1, 1 });
-                brain.RunTheNetWork();
-                brain.Fitness += 1 - brain.GetOutput().Average();
-
-                brains.Add(brain);
+                brains[i].LoadInputs(new float[] { 1, 1, 1 });
+                brains[i].RunTheNetWork();
+                brains[i].Fitness += 1 - brains[i].GetOutput().Average();
             }
-            Speciate.GenerationOffspring(brains, 6f, SpeciateCoefficient);
-            // this is to be deleted as I will Only do this for readability 
-            brains = brains.OrderBy(x => x.Fitness).ToList();
-            foreach (var item in brains)
+        }
+    }
+    public static class Crossover
+    {
+        public static bool Eltism = true;
+        public static List<Brain> NextGeneration(List<Brain> networks, int[] inHidOut, int popSize, List<Node> biasNodes = null, float connectProcent = 1f, float threshold = 99, float[] coefficients = null)
+        {
+            List<Brain> nextNetwork = Brain.RunInitialies(inHidOut, popSize, biasNodes, connectProcent);
+
+            var fitest = networks.Max(y => y.Fitness);
+            Brain BestInTest = networks.First(x => x.Fitness == fitest);
+
+            foreach (var net in networks)
             {
-                Console.WriteLine(item.Fitness);
+                net.Species = -1;
             }
-            Console.WriteLine(Speciate.Species.Sum(x => x.Members.Count));
-            Console.WriteLine(Speciate.GlobalAdjustedFitness);
-            Console.ReadLine();
+
+            List<Species> speciesList = Speciate.GenerationOffspring(networks, threshold, coefficients);
+
+            int n = 0;
+            foreach (var last in speciesList)
+            {
+                for (int i = 0; i < last.AllowedOffspring; i++)
+                {
+                    Brain parrentA = SoftMaxSelect(last.Members, last.SumAdjustedFitness);
+                    Brain parrentB = SoftMaxSelect(last.Members, last.SumAdjustedFitness);
+
+                    Brain child = new Brain(parrentA, parrentB);
+                                        
+                    nextNetwork[n++] = (child);
+                }
+            }
+
+            if (Eltism)
+            {
+                if (nextNetwork.Count == 0) {
+                    nextNetwork.Add(new Brain());
+                }
+                nextNetwork[0] = BestInTest;
+            }
+
+            
+            return nextNetwork;
+
+        }
+        public static void EltiOnOff()
+        {
+            Eltism = !Eltism;
+        }
+        public static Brain SoftMaxSelect(List<Brain> values, float maxValue)
+        {
+            float selected = RNG.RanDub() * (maxValue * 2) + 0;
+            float sums = 0;
+
+            foreach (var item in values)
+            {
+                sums += item.AdjustedFitness;
+                if (sums > selected)
+                {
+                    return item;
+                }
+            }
+
+            return values.Last();
         }
     }
     public class Species
@@ -98,7 +179,6 @@ namespace NEAT
             GlobalAdjustedFitness = 0;
             int n = 0;
             Dictionary<int, float> SpeciesAvgFitness = new Dictionary<int, float>();
-            List<int> Counts = new List<int>();
             int a = RNG.Ran(0, networks.Count);
             // for starting of with a random index. 
             for (int i = a; i < networks.Count; i++)
@@ -108,7 +188,6 @@ namespace NEAT
                     continue;
                 }
                 SpeciesAvgFitness.Add(n, 0f);
-                Counts.Add(1);
                 networks[i].Species = n;
                 foreach (var item in networks)
                 {
@@ -116,12 +195,9 @@ namespace NEAT
                     {
                         continue;
                     }
-                    if (SpeciateComparisonCheck(networks[i], item, threshold, coefficient))
-                    {
-                        Counts[n]++;
-                    }
+                    SpeciateComparisonCheck(networks[i], item, threshold, coefficient);
                 }
-                SpeciesAvgFitness[n] /= Counts[n];
+                SpeciesAvgFitness[n] /= networks.Count(x => x.Species == n);
                 n++;
             }
 
@@ -132,7 +208,6 @@ namespace NEAT
                     continue;
                 } 
                 SpeciesAvgFitness.Add(n, 0f);
-                Counts.Add(1);
                 net.Species = n;
                 foreach (var item in networks)
                 {
@@ -140,18 +215,15 @@ namespace NEAT
                     {
                         continue;
                     }
-                    if(SpeciateComparisonCheck(net, item, threshold, coefficient))
-                    {
-                        Counts[n]++;
-                    }
+                    SpeciateComparisonCheck(net, item, threshold, coefficient);
                 }
-                SpeciesAvgFitness[n] /= Counts[n];
+                SpeciesAvgFitness[n] /= networks.Count(x => x.Species == n);
                 n++;
             }
 
             foreach (var brain in networks)
             {
-                brain.AdjustedFitness = brain.Fitness / Counts[brain.Species];
+                brain.AdjustedFitness = brain.Fitness / networks.Count(x => x.Species == brain.Species);
                 SpeciesAvgFitness[brain.Species] += brain.AdjustedFitness;
             }
 
@@ -159,14 +231,37 @@ namespace NEAT
 
             List<Species> res = new List<Species>();
 
+            Dictionary<Brain, float> represents = new Dictionary<Brain, float>();
+
+            if(Species != null)
+            {
+                foreach (var rep in Species)
+                {
+                    var temp = Crossover.SoftMaxSelect(rep.Members, rep.SumAdjustedFitness);
+                    represents.Add(temp, rep.GensSinceImproved);
+                }
+            }
+
             for (int i = 0; i < n; i++)
             {
                 res.Add(new Species(i));
-                res[i].AdjustedFitness = (SpeciesAvgFitness[i] / Counts[i]); 
-                res[i].AllowedOffspring = (int)Math.Round(res[i].AdjustedFitness / GlobalFitness * Counts[i],0);
+                res[i].AdjustedFitness = (SpeciesAvgFitness[i] / networks.Count(x => x.Species == i)); 
+                res[i].AllowedOffspring = (int)Math.Round(res[i].AdjustedFitness / GlobalFitness * networks.Count(x => x.Species == i),0);
                 res[i].Members = networks.Where(x => x.Species == i).ToList();
                 res[i].SumAdjustedFitness = res[i].Members.Sum(x => x.AdjustedFitness);
-                res[i].Fitness = res[i].Members.Sum(x => x.Fitness) / res[i].Members.Count; 
+                res[i].Fitness = res[i].Members.Sum(x => x.Fitness) / res[i].Members.Count;
+                foreach (var rep in represents)
+                {
+                    if (res[i].Members.Any(x => x.Fitness == rep.Key.Fitness && res[i].Id == rep.Key.Species))
+                    {
+                        res[i].GensSinceImproved = rep.Value + 1;
+                    }
+                }
+                if(res[i].GensSinceImproved >= 15)
+                {
+                    res[i].AllowedOffspring = 0;
+                }
+                
             }
 
             GlobalAdjustedFitness = GlobalFitness;
@@ -199,7 +294,7 @@ namespace NEAT
 
             return false;
         }
-
+        
     } 
     public enum NodeType
     {
@@ -256,9 +351,42 @@ namespace NEAT
         public int Species = -1;
 
         public Brain(Brain parentA, Brain parentB = null) {
-            if(parentB == null) {
 
-            } 
+            if (parentA.Fitness < parentB.Fitness)
+            {
+                this.ArrNodes = parentA.ArrNodes;
+                this.ArrConnections = parentA.ArrConnections;
+                this.Species = parentA.Species;
+            }
+            else
+            {
+                this.ArrNodes = parentB.ArrNodes;
+                this.ArrConnections = parentB.ArrConnections;
+                this.Species = parentB.Species;
+            }
+            var temp = this.ArrConnections.Keys.ToList();
+            foreach (var conn in temp)
+            {
+                if (parentA.ArrConnections.ContainsKey(conn) &&
+                    parentB.ArrConnections.ContainsKey(conn))
+                {
+                    this.ArrConnections[conn] = RNG.RanDub() < 0.5 ? parentA.ArrConnections[conn] : parentB.ArrConnections[conn]; ;
+                }
+            }
+
+            this.Fitness = 0;
+            this.AdjustedFitness = 0;
+        }
+        public static List<Brain> RunInitialies(int[] inHidOut, int popSize, List<Node> biasNodes = null, float connectProcent = 1f)
+        {
+            List<Brain> brains = new List<Brain>();
+            for (int i = 0; i < popSize; i++)
+            {
+                Brain brain = new Brain();
+                brain.Initialies(inHidOut, biasNodes, connectProcent);
+                brains.Add(brain);
+            }
+            return brains;
         }
         public void Initialies(int[] inHidOut, List<Node> biasNodes = null, float connectProcent = 1f) 
         {
@@ -338,7 +466,7 @@ namespace NEAT
                 return;
             }
 
-            ArrConnections.Add(id, new Connection(id, input.NodeId, output.NodeId, RNG.RanDub()* (range*2) - range, enable, isRecurrent));
+            ArrConnections.Add(id, new Connection(id, input.NodeId, output.NodeId, RNG.RanDub() * (range*2) - range, enable, isRecurrent));
         }
         public void Mutate()
         {
