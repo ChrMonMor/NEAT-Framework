@@ -7,17 +7,17 @@ namespace NEAT
     public class Program
     {
         // Global Varibles
-        public static int Pop_Size;
-        public static int InputNodes;
-        public static int HiddenNodes;
-        public static int OutputNodes;
-        public static float ProcentConnection; // goes between 0 and 1
-        public static int SpeciesTarget;
-        public static float ComputedThreshold;
-        public static float MutationRate;
-        public static float MutationChance;
+        private static int Pop_Size;
+        private static int InputNodes;
+        private static int HiddenNodes;
+        private static int OutputNodes;
+        private static float ProcentConnection; // goes between 0 and 1
+        private static int SpeciesTarget;
+        private static float ComputedThreshold;
+        private static float MutationRate;
+        private static float MutationChance;
 
-        public static float[] SpeciateCoefficient;
+        private static float[] SpeciateCoefficient;
 
         public static int Generation = 0;
         static void Main(string[] args)
