@@ -96,6 +96,7 @@ namespace NEAT
                 {
                     break;
                 }
+
                 brains = Crossover.NextGeneration(brains, nodesArr, Pop_Size, bias, ProcentConnection, ComputedThreshold, SpeciateCoefficient);
 
                 if (Speciate.Species.Count > SpeciesTarget)
