@@ -24,62 +24,103 @@ namespace NEAT
 
         public static float[] SpeciateCoefficient;
 
+        public static int Generation = 0;
         static void Main(string[] args)
         {
-            Pop_Size = 50;
-            InputNodes = 2;
-            HiddenNodes = 0;
-            OutputNodes = 1;
-            ProcentConnection = 1f;
-            SpeciesTarget = 5;
-            ComputedThreshold = 99f;
-            MutationRate = 1f;
-            MutationChance = 0.8f;
-            SpeciateCoefficient = new float[] {1f, 1f, 0.4f};
+        //    Pop_Size = 50;
+        //    InputNodes = 2;
+        //    HiddenNodes = 1;
+        //    OutputNodes = 1;
+        //    ProcentConnection = 1f;
+        //    SpeciesTarget = 5;
+        //    ComputedThreshold = 99f;
+        //    MutationRate = 1f;
+        //    MutationChance = 0.8f;
+        //    SpeciateCoefficient = new float[] { 1f, 1f, 0.4f };
+
+        //    var tests = new (float[] input, float expected)[]
+        //    {
+        //        (new float[] {0, 0, 1}, 0),
+        //        (new float[] {0, 1, 1}, 1),
+        //        (new float[] {1, 0, 1}, 1),
+        //        (new float[] {1, 1, 1}, 0)
+        //    };
+
+        //    var nodesArr = new int[] { InputNodes, HiddenNodes, OutputNodes };
+        //    List<Node> bias = new List<Node>() { new Node(nodesArr.Length + 1, NodeType.BIAS, 1) };
+        //    List<Brain> brains = Brain.RunInitialies(nodesArr, Pop_Size, bias, ProcentConnection);
+        //    TestRun(brains, tests);
+        //    while (true)
+        //    {
+        //        if (brains.Max(x => x.Fitness) == 4)
+        //        {
+        //            break;
+        //        }
+        //        brains = Crossover.NextGeneration(brains, nodesArr, Pop_Size, bias, ProcentConnection, ComputedThreshold, SpeciateCoefficient);
+
+        //        if (Speciate.Species.Count > SpeciesTarget)
+        //        {
+        //            ComputedThreshold += 0.5f;
+        //        }
+        //        else
+        //        {
+        //            ComputedThreshold -= 0.5f;
+        //        }
+        //        Generation++;
+        //        TestRun(brains, tests);
+        //    }
+        //    brains = brains.OrderByDescending(x => x.Fitness).ToList();
+
+        }
+        public Brain GetBrain(int popSize, int inputNodes, int hiddenNodes, int outputNodes, float connectProcent, int speciesTarget, int computThreshold, float mutationRate, float mutationChance, float[] speciateCoefficient, (float[] input, float expected)[] tests, List<Node> biasNodes, float targetFitness, int MaxGenerations)
+        {
+            Pop_Size = popSize;
+            InputNodes = inputNodes;
+            HiddenNodes = hiddenNodes;
+            OutputNodes = outputNodes;
+            ProcentConnection = connectProcent;
+            SpeciesTarget = speciesTarget;
+            ComputedThreshold = computThreshold;
+            MutationRate = mutationRate;
+            MutationChance = mutationChance;
+            SpeciateCoefficient = speciateCoefficient;
+            Generation = 0;
 
             var nodesArr = new int[] { InputNodes, HiddenNodes, OutputNodes };
-            List<Node> bias = new List<Node>() { new Node(nodesArr.Length + 1, NodeType.BIAS, 1) };
+            List<Node> bias = biasNodes;
             List<Brain> brains = Brain.RunInitialies(nodesArr, Pop_Size, bias, ProcentConnection);
-            int n = 0;
-            TestRun(brains);
-            while (n < 2000)
+            TestRun(brains, tests);
+            while (Generation < MaxGenerations)
             {
+                if (brains.Max(x => x.Fitness) == targetFitness)
+                {
+                    break;
+                }
                 brains = Crossover.NextGeneration(brains, nodesArr, Pop_Size, bias, ProcentConnection, ComputedThreshold, SpeciateCoefficient);
 
                 if (Speciate.Species.Count > SpeciesTarget)
                 {
-                    ComputedThreshold += 0.5f ;
-                } 
+                    ComputedThreshold += 0.5f;
+                }
                 else
                 {
                     ComputedThreshold -= 0.5f;
                 }
-
-                n++;
-                Console.WriteLine(n);
-                TestRun(brains);
+                Generation++;
+                TestRun(brains, tests);
             }
-            brains = brains.OrderBy(x => x.Fitness).ToList();
+            brains = brains.OrderByDescending(x => x.Fitness).ToList();
 
-            foreach (var item in brains) {
-                Console.WriteLine(item);
-            }
-
-            Console.ReadLine();
+            return brains[0];
         }
-        public static void TestRun(List<Brain> brains)
+        public static void TestRun(List<Brain> brains, (float[] input, float expected)[] tests)
         {
-            var tests = new (float[] input, float expected)[]
-            {
-                (new float[] {0, 0, 1}, 0),
-                (new float[] {0, 1, 1}, 1),
-                (new float[] {1, 0, 1}, 1),
-                (new float[] {1, 1, 1}, 0)
-            };
 
-            foreach (var brain in brains) {
+            foreach (var brain in brains)
+            {
                 float fitness = 0f;
-                foreach (var (input, expected) in tests) {
+                foreach (var (input, expected) in tests)
+                {
                     brain.LoadInputs(input);
                     brain.RunTheNetWork();
                     float output = brain.GetOutput().Average();
@@ -88,11 +129,18 @@ namespace NEAT
                 brain.Fitness = fitness;
             }
         }
+        public Brain GetBestEver()
+        {
+            return Crossover.BestEver;
+        }
     }
     public static class Crossover
     {
         public static bool Eltism = true;
         public static Brain BestEver = new Brain();
+        public static float MutateWeightsChance = 0.8f, MutateWeightsRange = 0.2f, MutateConnectionsChance = 0.05f, MutateConnectionEnablingChance = 0.2f, MutateNodesChance = 0.2f;
+        public static bool RecusionAllowed = false;
+        public static int Range = 20;
         public static List<Brain> NextGeneration(List<Brain> networks, int[] inHidOut, int popSize, List<Node> biasNodes = null, float connectProcent = 1f, float threshold = 99, float[] coefficients = null)
         {
             List<Brain> nextNetwork = Brain.RunInitialies(inHidOut, popSize, biasNodes, connectProcent);
@@ -101,7 +149,7 @@ namespace NEAT
 
             Brain BestInTest = networks.First(x => x.Fitness == fitest);
 
-            if (BestInTest.Fitness > BestEver.Fitness) 
+            if (BestInTest.Fitness > BestEver.Fitness)
             {
                 BestEver = BestInTest;
             }
@@ -123,12 +171,12 @@ namespace NEAT
 
                     Brain child = new Brain(parrentA, parrentB);
 
-                    child.Mutate();
+                    child.Mutate(MutateWeightsChance, MutateWeightsRange, MutateConnectionsChance, MutateConnectionEnablingChance, RecusionAllowed, Range, MutateNodesChance);
 
                     if (n < popSize)
                     {
                         nextNetwork[n++] = child;
-                    } 
+                    }
                     else
                     {
                         nextNetwork.Add(child);
@@ -138,14 +186,25 @@ namespace NEAT
 
             if (Eltism)
             {
-                if (nextNetwork.Count == 0) {
+                if (nextNetwork.Count == 0)
+                {
                     nextNetwork.Add(new Brain());
                 }
                 nextNetwork[0] = BestEver;
             }
-            
+
             return nextNetwork.Take(popSize).ToList();
 
+        }
+        public static void MutationVariables(float mutateWeightsChance = 0.8f, float mutateWeightsRange = 0.2f, float mutateConnectionsChance = 0.05f, float mutateConnectionEnablingChance = 0.2f, bool recusionAllowed = false, int range = 20, float mutateNodesChance = 0.2f)
+        {
+            MutateWeightsChance = mutateWeightsChance;
+            MutateWeightsRange = mutateWeightsRange;
+            MutateConnectionsChance = mutateConnectionsChance;
+            MutateConnectionEnablingChance = mutateConnectionEnablingChance;
+            RecusionAllowed = recusionAllowed;
+            Range = range;
+            MutateNodesChance = mutateNodesChance;
         }
         public static void EltiOnOff()
         {
@@ -167,6 +226,10 @@ namespace NEAT
 
             return values.Last();
         }
+        public static Brain GetBestEver()
+        {
+            return BestEver;
+        }
     }
     public class Species
     {
@@ -186,9 +249,10 @@ namespace NEAT
         public float Fitness { get; set; }
         public float AdjustedFitness { get; set; }
         public float SumFitness { get; set; }
-        public float GensSinceImproved {  get; set; }
-        public override string ToString() {
-            return  "" + AdjustedFitness + ", " + AllowedOffspring + ", " + Members.Count;
+        public float GensSinceImproved { get; set; }
+        public override string ToString()
+        {
+            return "" + AdjustedFitness + ", " + AllowedOffspring + ", " + Members.Count;
         }
     }
     public static class Speciate
@@ -200,27 +264,32 @@ namespace NEAT
         {
             GlobalAdjustedFitness = 0;
             int n = 0;
-            foreach (var s in Species) {
+            foreach (var s in Species)
+            {
 
                 var rep = s.Members[RNG.Ran(0, s.Members.Count)];
                 s.SumFitness = 0;
-                foreach (var item in networks) {
-                    if (item.Species != -1) {
+                foreach (var item in networks)
+                {
+                    if (item.Species != -1)
+                    {
                         continue;
                     }
-                    if (SpeciateComparisonCheck(rep, item, threshold, coefficient)) {
+                    if (SpeciateComparisonCheck(rep, item, threshold, coefficient))
+                    {
                         s.SumFitness += item.Fitness;
                     }
                 }
             }
 
-            if(Species.Count > 0) {
-                n = Species.Max(x => x.Id)+1;
+            if (Species.Count > 0)
+            {
+                n = Species.Max(x => x.Id) + 1;
             }
 
             foreach (var net in networks)
             {
-                if(net.Species != -1)
+                if (net.Species != -1)
                 {
                     continue;
                 }
@@ -234,7 +303,8 @@ namespace NEAT
                     {
                         continue;
                     }
-                    if (SpeciateComparisonCheck(net, item, threshold, coefficient)) {
+                    if (SpeciateComparisonCheck(net, item, threshold, coefficient))
+                    {
                         s.SumFitness += item.Fitness;
                     }
                 }
@@ -251,29 +321,32 @@ namespace NEAT
 
             float GlobalFitness = networks.Sum(x => x.AdjustedFitness) / networks.Count;
 
-            foreach (var res in Species) 
+            foreach (var res in Species)
             {
                 res.Members = networks.Where(x => x.Species == res.Id).ToList();
-                res.AdjustedFitness /= res.Members.Count; 
+                res.AdjustedFitness /= res.Members.Count;
                 res.AllowedOffspring = (int)Math.Round(res.AdjustedFitness / GlobalFitness * res.Members.Count, 0);
                 res.SumFitness = res.Members.Sum(x => x.Fitness);
 
-                if(res.Fitness < res.SumFitness / res.Members.Count) {
+                if (res.Fitness < res.SumFitness / res.Members.Count)
+                {
                     res.Fitness = res.SumFitness / res.Members.Count;
                     res.GensSinceImproved = 0;
-                } 
-                else 
+                }
+                else
                 {
                     res.GensSinceImproved++;
                 }
-                if (res.GensSinceImproved >= GenStagnationLimit) {
+                if (res.GensSinceImproved >= GenStagnationLimit)
+                {
                     res.AllowedOffspring = 0;
                 }
             }
 
-            for(int i = Species.Count-1; i >= 0; i--) 
+            for (int i = Species.Count - 1; i >= 0; i--)
             {
-                if (Species[i].Members.Count <= 0) {
+                if (Species[i].Members.Count <= 0)
+                {
                     Species.Remove(Species[i]);
                 }
             }
@@ -283,7 +356,8 @@ namespace NEAT
             return Species;
 
         }
-        public static bool SpeciateComparisonCheck(Brain netA, Brain netB, float threshold, float[] coefficient = null) {
+        public static bool SpeciateComparisonCheck(Brain netA, Brain netB, float threshold, float[] coefficient = null)
+        {
             coefficient = coefficient ?? new[] { 1f, 1f, 1f };
             float excess = 0, disjoint = 0, avgWeight = 0;
             int n = Math.Max(netA.ArrConnections.Count, netB.ArrConnections.Count), avgCount = 0;
@@ -291,8 +365,10 @@ namespace NEAT
             excess = (float)(netA.ArrConnections.Count(x => x.Key > bMax && x.Value.Enabled) + netB.ArrConnections.Count(x => x.Key > aMax && x.Value.Enabled)) / n * coefficient[0];
             disjoint = (float)(netA.ArrConnections.Count(x => x.Key < bMax && x.Value.Enabled && !netB.ArrConnections.ContainsKey(x.Key)) + netB.ArrConnections.Count(x => x.Key < aMax && x.Value.Enabled && !netA.ArrConnections.ContainsKey(x.Key))) / n * coefficient[1];
             // gives avg of connections of the same InnovationID
-            foreach (var aConn in netA.ArrConnections) {
-                if (aConn.Value.Enabled && netB.ArrConnections.ContainsKey(aConn.Key)) {
+            foreach (var aConn in netA.ArrConnections)
+            {
+                if (aConn.Value.Enabled && netB.ArrConnections.ContainsKey(aConn.Key))
+                {
                     if (netB.ArrConnections[aConn.Key].Enabled)
                     {
                         avgWeight += Math.Abs(aConn.Value.ConnectionWeight - netB.ArrConnections[aConn.Key].ConnectionWeight);
@@ -301,22 +377,23 @@ namespace NEAT
                 }
             }
 
-            avgWeight = (float)(avgWeight / avgCount) * coefficient[2];
+            avgWeight = avgCount != 0 ? (float)(avgWeight / avgCount) * coefficient[2] : 99;
 
             if (avgWeight == float.NaN)
             {
                 avgWeight = 99;
             }
 
-            if(excess + disjoint + avgWeight <= threshold) {
+            if (excess + disjoint + avgWeight <= threshold)
+            {
                 netB.Species = netA.Species;
                 return true;
             }
 
             return false;
         }
-        
-    } 
+
+    }
     public enum NodeType
     {
         INPUT = 0,
@@ -326,8 +403,8 @@ namespace NEAT
     }
     public class Node
     {
-        
-        public int NodeId {  get; set; }
+
+        public int NodeId { get; set; }
         public NodeType NodeType { get; set; }
         public int NodeLayer { get; set; }
         public float SumInput { get; set; }
@@ -379,16 +456,18 @@ namespace NEAT
         public float AdjustedFitness = 0;
         public int Species = -1;
 
-        public Brain(Brain parentA, Brain parentB) {
+        public Brain(Brain parentA, Brain parentB)
+        {
 
             if (parentA.Fitness > parentB.Fitness)
             {
-                foreach (var node in parentA.ArrNodes) 
+                foreach (var node in parentA.ArrNodes)
                 {
                     ArrNodes.Add(new Node(node.NodeId, node.NodeType, node.NodeLayer, node.SumInput, node.SumOutput));
                 }
 
-                foreach (var conn in parentA.ArrConnections) {
+                foreach (var conn in parentA.ArrConnections)
+                {
                     var c = conn.Value;
                     ArrConnections.Add(conn.Key, new Connection(c.InnovationID, c.InputNodeID, c.OutputNodeID, c.ConnectionWeight, c.Enabled, c.IsRecurrent));
                 }
@@ -396,11 +475,13 @@ namespace NEAT
             }
             else
             {
-                foreach (var node in parentB.ArrNodes) {
+                foreach (var node in parentB.ArrNodes)
+                {
                     ArrNodes.Add(new Node(node.NodeId, node.NodeType, node.NodeLayer, node.SumInput, node.SumOutput));
                 }
 
-                foreach (var conn in parentB.ArrConnections) {
+                foreach (var conn in parentB.ArrConnections)
+                {
                     var c = conn.Value;
                     ArrConnections.Add(conn.Key, new Connection(c.InnovationID, c.InputNodeID, c.OutputNodeID, c.ConnectionWeight, c.Enabled, c.IsRecurrent));
                 }
@@ -430,7 +511,7 @@ namespace NEAT
             }
             return brains;
         }
-        public void Initialies(int[] inHidOut, List<Node> biasNodes = null, float connectProcent = 1f, int connectionRange = 20) 
+        public void Initialies(int[] inHidOut, List<Node> biasNodes = null, float connectProcent = 1f, int connectionRange = 20)
         {
             int layer = 1;
             int type = 0;
@@ -457,11 +538,11 @@ namespace NEAT
             {
                 foreach (var uNode in ArrNodes)
                 {
-                    if(connectProcent < RNG.RanDub())
+                    if (connectProcent < RNG.RanDub())
                     {
                         continue;
                     }
-                    if(iNode.NodeId == uNode.NodeId)
+                    if (iNode.NodeId == uNode.NodeId)
                     {
                         continue;
                     }
@@ -487,20 +568,20 @@ namespace NEAT
             switch (type)
             {
                 case NodeType.INPUT:
-                    ArrNodes.Add(new Node() { NodeId = ArrNodes.Count + 1, NodeLayer = layer, NodeType = NodeType.INPUT});
+                    ArrNodes.Add(new Node() { NodeId = ArrNodes.Count + 1, NodeLayer = layer, NodeType = NodeType.INPUT });
                     break;
                 case NodeType.OUTPUT:
-                    ArrNodes.Add(new Node() { NodeId = ArrNodes.Count + 1, NodeLayer = layer, NodeType = NodeType.OUTPUT});
+                    ArrNodes.Add(new Node() { NodeId = ArrNodes.Count + 1, NodeLayer = layer, NodeType = NodeType.OUTPUT });
                     break;
                 case NodeType.HIDDEN:
-                    ArrNodes.Add(new Node() { NodeId = ArrNodes.Count + 1, NodeLayer = layer, NodeType = NodeType.HIDDEN});
+                    ArrNodes.Add(new Node() { NodeId = ArrNodes.Count + 1, NodeLayer = layer, NodeType = NodeType.HIDDEN });
                     break;
                 default:
-                    ArrNodes.Add(new Node() { NodeId = ArrNodes.Count + 1, NodeLayer = layer, NodeType = NodeType.BIAS});
+                    ArrNodes.Add(new Node() { NodeId = ArrNodes.Count + 1, NodeLayer = layer, NodeType = NodeType.BIAS });
                     break;
             }
         }
-        public bool AddConnection(Node input, Node output, int range = 20,bool enable = true, bool isRecurrent = false)
+        public bool AddConnection(Node input, Node output, int range = 20, bool enable = true, bool isRecurrent = false)
         {
             int id = int.Parse(input.NodeId + "00" + output.NodeId);
 
@@ -509,40 +590,53 @@ namespace NEAT
                 return false;
             }
 
-            ArrConnections.Add(id, new Connection(id, input.NodeId, output.NodeId, RNG.RanDub() * (range*2) - range, enable, isRecurrent));
+            ArrConnections.Add(id, new Connection(id, input.NodeId, output.NodeId, RNG.RanDub() * (range * 2) - range, enable, isRecurrent));
             return true;
         }
-        public void Mutate(float mutationChanceWeight = 0.8f, float mutationRateWeight = 0.2f, float mutationChanceConnection = 0.05f, float mutationChanceDisabledConnection = 0.2f, bool recusionAllowed = false, int range = 20, float mutaionChanceNodes = 0.2f)
+        public void Mutate(float mutateWeightsChance = 0.8f, float mutateWeightsRange = 0.2f, float mutateConnectionsChance = 0.05f, float mutateConnectionEnablingChance = 0.2f, bool recusionAllowed = false, int range = 20, float mutateNodesChance = 0.2f)
         {
             // Change Weigths 
-            if(RNG.RanDub() < mutationChanceWeight) {
-                foreach (var conn in ArrConnections) {
-                    if(RNG.RanDub() < 0.9f) {
-                        float temp = conn.Value.ConnectionWeight * mutationRateWeight;
+            if (RNG.RanDub() < mutateWeightsChance)
+            {
+                foreach (var conn in ArrConnections)
+                {
+                    if (RNG.RanDub() < 0.9f)
+                    {
+                        float temp = conn.Value.ConnectionWeight * mutateWeightsRange;
                         conn.Value.ConnectionWeight += RNG.RanDub() * (temp * 2) - temp;
-                    } else {
+                    }
+                    else
+                    {
                         conn.Value.ConnectionWeight = RNG.RanDub() * (range * 2) - range;
                     }
                 }
             }
 
             // Add Connection 
-            if(RNG.RanDub() < mutationChanceConnection) {
-                for (int i = 0; i < 20; i++) {
+            if (RNG.RanDub() < mutateConnectionsChance)
+            {
+                for (int i = 0; i < 20; i++)
+                {
                     Node a = ArrNodes[RNG.Ran(0, ArrNodes.Count)];
                     Node b = ArrNodes[RNG.Ran(0, ArrNodes.Count)];
-                    if(a.NodeId != b.NodeId && a.NodeLayer < b.NodeLayer ) {
+                    if (a.NodeId != b.NodeId && a.NodeLayer < b.NodeLayer)
+                    {
                         int key = int.Parse(a.NodeId + "00" + b.NodeId);
-                        if (ArrConnections.ContainsKey(key)) {
-                            if (recusionAllowed && ArrConnections[key].Enabled) {
+                        if (ArrConnections.ContainsKey(key))
+                        {
+                            if (recusionAllowed && ArrConnections[key].Enabled)
+                            {
                                 ArrConnections[key].IsRecurrent = !ArrConnections[key].IsRecurrent;
                                 break;
-                            } 
-                            if (!ArrConnections[key].Enabled && RNG.RanDub() < mutationChanceDisabledConnection) {
+                            }
+                            if (!ArrConnections[key].Enabled && RNG.RanDub() < mutateConnectionEnablingChance)
+                            {
                                 ArrConnections[key].Enabled = true;
                                 break;
                             }
-                        } else {
+                        }
+                        else
+                        {
                             AddConnection(a, b, range);
                             break;
                         }
@@ -551,14 +645,15 @@ namespace NEAT
             }
 
             // Adding Nodes 
-            if(RNG.RanDub() < mutaionChanceNodes) {
+            if (RNG.RanDub() < mutateNodesChance)
+            {
                 Node a = ArrNodes[RNG.Ran(0, ArrNodes.Count)];
                 foreach (var item in ArrConnections)
                 {
-                    if(item.Value.InputNodeID == a.NodeId && item.Value.Enabled)
+                    if (item.Value.InputNodeID == a.NodeId && item.Value.Enabled)
                     {
-                        Node c = ArrNodes[item.Value.OutputNodeID-1];
-                        AddNode(a.NodeLayer+1, NodeType.HIDDEN);
+                        Node c = ArrNodes[item.Value.OutputNodeID - 1];
+                        AddNode(a.NodeLayer + 1, NodeType.HIDDEN);
                         Node b = ArrNodes.Last();
                         if (!AddConnection(a, b, enable: true, isRecurrent: item.Value.IsRecurrent))
                         {
@@ -575,39 +670,47 @@ namespace NEAT
                 }
                 RebalanceNodeLayers();
             }
-            
+
         }
-        public void RebalanceNodeLayers() {
-            // Reset all layers to uninitialized (-1)
-            foreach (var node in ArrNodes) {
-                if (node.NodeType == NodeType.INPUT || node.NodeType == NodeType.BIAS) {
+        public void RebalanceNodeLayers()
+        {
+            foreach (var node in ArrNodes)
+            {
+                if (node.NodeType == NodeType.INPUT || node.NodeType == NodeType.BIAS)
+                {
                     node.NodeLayer = 1;
-                } else {
+                }
+                else
+                {
                     node.NodeLayer = -1;
                 }
             }
 
             bool changed = true;
-            while (changed) {
+            while (changed)
+            {
                 changed = false;
-                foreach (var conn in ArrConnections.Values) {
+                foreach (var conn in ArrConnections.Values)
+                {
                     if (!conn.Enabled) continue;
 
                     Node inputNode = ArrNodes.First(n => n.NodeId == conn.InputNodeID);
                     Node outputNode = ArrNodes.First(n => n.NodeId == conn.OutputNodeID);
 
                     int proposedLayer = inputNode.NodeLayer + 1;
-                    if (inputNode.NodeLayer > 0 && (outputNode.NodeLayer == -1 || outputNode.NodeLayer < proposedLayer)) {
+                    if (inputNode.NodeLayer > 0 && (outputNode.NodeLayer == -1 || outputNode.NodeLayer < proposedLayer))
+                    {
                         outputNode.NodeLayer = proposedLayer;
                         changed = true;
                     }
                 }
             }
 
-            // Ensure output nodes have the highest layer
             int maxLayer = ArrNodes.Max(n => n.NodeLayer);
-            foreach (var node in ArrNodes) {
-                if (node.NodeType == NodeType.OUTPUT) {
+            foreach (var node in ArrNodes)
+            {
+                if (node.NodeType == NodeType.OUTPUT)
+                {
                     node.NodeLayer = maxLayer;
                 }
             }
@@ -618,14 +721,15 @@ namespace NEAT
         public void LoadInputs(float[] input)
         {
             int i = 0;
-            foreach (var node in ArrNodes) { 
-                
-                if(node.NodeLayer == 1)
+            foreach (var node in ArrNodes)
+            {
+
+                if (node.NodeLayer == 1)
                 {
                     node.SumInput = input[i++];
                     foreach (var conn in ArrConnections)
                     {
-                        if(conn.Value.InputNodeID == node.NodeId && conn.Value.IsRecurrent)
+                        if (conn.Value.InputNodeID == node.NodeId && conn.Value.IsRecurrent)
                         {
                             node.SumInput *= ArrNodes.First(x => x.NodeId == conn.Value.InputNodeID).SumOutput * conn.Value.ConnectionWeight;
                         }
@@ -634,26 +738,33 @@ namespace NEAT
                 }
             }
         }
-        public void RunTheNetWork() {
+        public void RunTheNetWork()
+        {
             int layer = 2;
             int maxLayer = ArrNodes.Max(n => n.NodeLayer);
 
-            while (layer <= maxLayer) {
-                foreach (var node in ArrNodes) {
-                    if (node.NodeLayer == layer) {
+            while (layer <= maxLayer)
+            {
+                foreach (var node in ArrNodes)
+                {
+                    if (node.NodeLayer == layer)
+                    {
                         node.SumInput = 0;
 
-                        foreach (var conn in ArrConnections.Values) {
+                        foreach (var conn in ArrConnections.Values)
+                        {
                             if (!conn.Enabled) continue;
 
-                            if (conn.OutputNodeID == node.NodeId) {
+                            if (conn.OutputNodeID == node.NodeId)
+                            {
                                 Node inputNode = ArrNodes.First(x => x.NodeId == conn.InputNodeID);
-                                node.SumInput += inputNode.SumOutput * conn.ConnectionWeight;
+                                if (inputNode.NodeLayer != layer) node.SumInput += inputNode.SumOutput * conn.ConnectionWeight;
                             }
 
-                            if (conn.InputNodeID == node.NodeId && conn.IsRecurrent) {
+                            if (conn.InputNodeID == node.NodeId && conn.IsRecurrent)
+                            {
                                 Node outputNode = ArrNodes.First(x => x.NodeId == conn.OutputNodeID);
-                                node.SumInput += outputNode.SumOutput * conn.ConnectionWeight;
+                                if (outputNode.NodeLayer != layer) node.SumInput += outputNode.SumOutput * conn.ConnectionWeight;
                             }
                         }
                         node.SumOutput = Activation(node.SumInput);
@@ -664,7 +775,8 @@ namespace NEAT
         }
 
         // Activation function
-        private float Activation(float x) {
+        private float Activation(float x)
+        {
             return 1f / (1f + (float)Math.Exp(-x));
         }
 
@@ -676,11 +788,19 @@ namespace NEAT
         {
             return ArrNodes.Where(x => x.NodeType == NodeType.OUTPUT).Select(x => x.SumOutput).ToList();
         }
+        public List<float> Run(float[] input)
+        {
+            {
+                LoadInputs(input);
+                RunTheNetWork();
+                return GetOutput();
+            }
 
+        }
     }
     static class RNG
     {
-        private readonly static Random ran = new Random(); 
+        private readonly static Random ran = new Random();
         public static float RanDub()
         {
             return (float)ran.NextDouble();
