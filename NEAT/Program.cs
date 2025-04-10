@@ -1,11 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Xml.Linq;
 
 namespace NEAT
 {
@@ -27,49 +22,49 @@ namespace NEAT
         public static int Generation = 0;
         static void Main(string[] args)
         {
-        //    Pop_Size = 50;
-        //    InputNodes = 2;
-        //    HiddenNodes = 1;
-        //    OutputNodes = 1;
-        //    ProcentConnection = 1f;
-        //    SpeciesTarget = 5;
-        //    ComputedThreshold = 99f;
-        //    MutationRate = 1f;
-        //    MutationChance = 0.8f;
-        //    SpeciateCoefficient = new float[] { 1f, 1f, 0.4f };
+            Pop_Size = 50;
+            InputNodes = 2;
+            HiddenNodes = 1;
+            OutputNodes = 1;
+            ProcentConnection = 1f;
+            SpeciesTarget = 5;
+            ComputedThreshold = 99f;
+            MutationRate = 1f;
+            MutationChance = 0.8f;
+            SpeciateCoefficient = new float[] { 1f, 1f, 0.4f };
 
-        //    var tests = new (float[] input, float expected)[]
-        //    {
-        //        (new float[] {0, 0, 1}, 0),
-        //        (new float[] {0, 1, 1}, 1),
-        //        (new float[] {1, 0, 1}, 1),
-        //        (new float[] {1, 1, 1}, 0)
-        //    };
+            var tests = new (float[] input, float expected)[]
+            {
+                (new float[] {0, 0, 1}, 0),
+                (new float[] {0, 1, 1}, 1),
+                (new float[] {1, 0, 1}, 1),
+                (new float[] {1, 1, 1}, 0)
+            };
 
-        //    var nodesArr = new int[] { InputNodes, HiddenNodes, OutputNodes };
-        //    List<Node> bias = new List<Node>() { new Node(nodesArr.Length + 1, NodeType.BIAS, 1) };
-        //    List<Brain> brains = Brain.RunInitialies(nodesArr, Pop_Size, bias, ProcentConnection);
-        //    TestRun(brains, tests);
-        //    while (true)
-        //    {
-        //        if (brains.Max(x => x.Fitness) == 4)
-        //        {
-        //            break;
-        //        }
-        //        brains = Crossover.NextGeneration(brains, nodesArr, Pop_Size, bias, ProcentConnection, ComputedThreshold, SpeciateCoefficient);
+            var nodesArr = new int[] { InputNodes, HiddenNodes, OutputNodes };
+            List<Node> bias = new List<Node>() { new Node(nodesArr.Length + 1, NodeType.BIAS, 1) };
+            List<Brain> brains = Brain.RunInitialies(nodesArr, Pop_Size, bias, ProcentConnection);
+            TestRun(brains, tests);
+            while (true)
+            {
+                if (brains.Max(x => x.Fitness) == 4)
+                {
+                    break;
+                }
+                brains = Crossover.NextGeneration(brains, nodesArr, Pop_Size, bias, ProcentConnection, ComputedThreshold, SpeciateCoefficient);
 
-        //        if (Speciate.Species.Count > SpeciesTarget)
-        //        {
-        //            ComputedThreshold += 0.5f;
-        //        }
-        //        else
-        //        {
-        //            ComputedThreshold -= 0.5f;
-        //        }
-        //        Generation++;
-        //        TestRun(brains, tests);
-        //    }
-        //    brains = brains.OrderByDescending(x => x.Fitness).ToList();
+                if (Speciate.Species.Count > SpeciesTarget)
+                {
+                    ComputedThreshold += 0.5f;
+                }
+                else
+                {
+                    ComputedThreshold -= 0.5f;
+                }
+                Generation++;
+                TestRun(brains, tests);
+            }
+            brains = brains.OrderByDescending(x => x.Fitness).ToList();
 
         }
         public Brain GetBrain(int popSize, int inputNodes, int hiddenNodes, int outputNodes, float connectProcent, int speciesTarget, int computThreshold, float mutationRate, float mutationChance, float[] speciateCoefficient, (float[] input, float expected)[] tests, List<Node> biasNodes, float targetFitness, int MaxGenerations)
