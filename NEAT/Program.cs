@@ -32,7 +32,7 @@ namespace NEAT
             OutputNodes = 1;
             ProcentConnection = 1f;
             SpeciesTarget = 5;
-            ComputedThreshold = 4f;
+            ComputedThreshold = 99f;
             MutationRate = 1f;
             MutationChance = 0.8f;
             SpeciateCoefficient = new float[] {1f, 1f, 0.4f};
@@ -41,10 +41,9 @@ namespace NEAT
             List<Node> bias = new List<Node>() { new Node(nodesArr.Length + 1, NodeType.BIAS, 1) };
             List<Brain> brains = Brain.RunInitialies(nodesArr, Pop_Size, bias, ProcentConnection);
             int n = 0;
-            while (n < 1000)
+            TestRun(brains);
+            while (n < 2000)
             {
-                TestRun(brains);
-
                 brains = Crossover.NextGeneration(brains, nodesArr, Pop_Size, bias, ProcentConnection, ComputedThreshold, SpeciateCoefficient);
 
                 if (Speciate.Species.Count > SpeciesTarget)
@@ -56,31 +55,37 @@ namespace NEAT
                     ComputedThreshold -= 0.5f;
                 }
 
-                // this is to be deleted as I will Only do this for readabilit
                 n++;
                 Console.WriteLine(n);
+                TestRun(brains);
             }
+            brains = brains.OrderBy(x => x.Fitness).ToList();
+
+            foreach (var item in brains) {
+                Console.WriteLine(item);
+            }
+
             Console.ReadLine();
         }
         public static void TestRun(List<Brain> brains)
         {
-            for (int i = 0; i < Pop_Size; i++)
+            var tests = new (float[] input, float expected)[]
             {
-                brains[i].LoadInputs(new float[] { 0, 0, 1 });
-                brains[i].RunTheNetWork();
-                brains[i].Fitness = 1 - brains[i].GetOutput().Average();
+                (new float[] {0, 0, 1}, 0),
+                (new float[] {0, 1, 1}, 1),
+                (new float[] {1, 0, 1}, 1),
+                (new float[] {1, 1, 1}, 0)
+            };
 
-                brains[i].LoadInputs(new float[] { 0, 1, 1 });
-                brains[i].RunTheNetWork();
-                brains[i].Fitness += brains[i].GetOutput().Average();
-
-                brains[i].LoadInputs(new float[] { 1, 0, 1 });
-                brains[i].RunTheNetWork();
-                brains[i].Fitness += brains[i].GetOutput().Average();
-
-                brains[i].LoadInputs(new float[] { 1, 1, 1 });
-                brains[i].RunTheNetWork();
-                brains[i].Fitness += 1 - brains[i].GetOutput().Average();
+            foreach (var brain in brains) {
+                float fitness = 0f;
+                foreach (var (input, expected) in tests) {
+                    brain.LoadInputs(input);
+                    brain.RunTheNetWork();
+                    float output = brain.GetOutput().Average();
+                    fitness += 1 - Math.Abs(expected - output);
+                }
+                brain.Fitness = fitness;
             }
         }
     }
@@ -128,7 +133,6 @@ namespace NEAT
                     {
                         nextNetwork.Add(child);
                     }
-                    
                 }
             }
 
@@ -140,7 +144,7 @@ namespace NEAT
                 nextNetwork[0] = BestEver;
             }
             
-            return nextNetwork;
+            return nextNetwork.Take(popSize).ToList();
 
         }
         public static void EltiOnOff()
@@ -195,7 +199,7 @@ namespace NEAT
         public static List<Species> GenerationOffspring(List<Brain> networks, float threshold, float[] coefficient = null)
         {
             GlobalAdjustedFitness = 0;
-
+            int n = 0;
             foreach (var s in Species) {
 
                 var rep = s.Members[RNG.Ran(0, s.Members.Count)];
@@ -208,10 +212,11 @@ namespace NEAT
                         s.SumFitness += item.Fitness;
                     }
                 }
-                // SpeciesAvgFitness[n] /= networks.Count(x => x.Species == n);
             }
 
-            int n = Species.Count;
+            if(Species.Count > 0) {
+                n = Species.Max(x => x.Id)+1;
+            }
 
             foreach (var net in networks)
             {
@@ -470,7 +475,7 @@ namespace NEAT
         }
         public override string ToString()
         {
-            return "" + Fitness + ", " + Species;
+            return "f: " + Fitness + ", s:" + Species + ", Cc:" + ArrConnections.Count + ", Nc:" + ArrNodes.Count;
         }
         public void DrawNetwork()
         {
@@ -629,34 +634,40 @@ namespace NEAT
                 }
             }
         }
-        public void RunTheNetWork()
-        {
+        public void RunTheNetWork() {
             int layer = 2;
-            do
-            {
-                foreach (var node in ArrNodes)
-                {
-                    if(node.NodeLayer == layer)
-                    {
+            int maxLayer = ArrNodes.Max(n => n.NodeLayer);
+
+            while (layer <= maxLayer) {
+                foreach (var node in ArrNodes) {
+                    if (node.NodeLayer == layer) {
                         node.SumInput = 0;
-                        foreach (var conn in ArrConnections)
-                        {
-                            if(conn.Value.OutputNodeID == node.NodeId)
-                            {
-                                node.SumInput += ArrNodes.First(x => x.NodeId == conn.Value.InputNodeID).SumOutput * conn.Value.ConnectionWeight;
+
+                        foreach (var conn in ArrConnections.Values) {
+                            if (!conn.Enabled) continue;
+
+                            if (conn.OutputNodeID == node.NodeId) {
+                                Node inputNode = ArrNodes.First(x => x.NodeId == conn.InputNodeID);
+                                node.SumInput += inputNode.SumOutput * conn.ConnectionWeight;
                             }
-                            if(conn.Value.InputNodeID == node.NodeId && conn.Value.IsRecurrent)
-                            {
-                                node.SumInput += ArrNodes.First(x => x.NodeId == conn.Value.OutputNodeID).SumOutput * conn.Value.ConnectionWeight;
+
+                            if (conn.InputNodeID == node.NodeId && conn.IsRecurrent) {
+                                Node outputNode = ArrNodes.First(x => x.NodeId == conn.OutputNodeID);
+                                node.SumInput += outputNode.SumOutput * conn.ConnectionWeight;
                             }
                         }
-                        node.SumOutput = (float)(1 / (1 + Math.Exp(node.SumInput * -1.0f)));
+                        node.SumOutput = Activation(node.SumInput);
                     }
                 }
                 layer++;
             }
-            while (ArrNodes.Any(x => x.NodeLayer == layer));
         }
+
+        // Activation function
+        private float Activation(float x) {
+            return 1f / (1f + (float)Math.Exp(-x));
+        }
+
         public List<float> GetOutput(int layer)
         {
             return ArrNodes.Where(x => x.NodeLayer == layer).Select(x => x.SumOutput).ToList();
